@@ -6,23 +6,38 @@ app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 
 # -----------------------------
+# Begriffslisten
+# -----------------------------
+DEFAULT_TERMS_SFW = [
+    # Allgemein / Harmlos
+    "Sportart", "Tier", "Stadt", "Frucht", "Land", "Beruf", "Film",
+    "Farbe", "Musikinstrument", "Auto-Marke", "Essen", "Getränk",
+    "Kleidungsstück", "YouTuber", "Schauspieler", "Sänger", "Computerspiel",
+    "Superheld", "Serie", "Emoji", "Marke", "Planetenname", "Pokémon",
+    "Harry-Potter-Charakter", "Disney-Figur",
+
+    # Lustig / Party
+    "Trinkspiel", "Beleidigung", "Kindheitsserie", "Schimpfwort",
+    "Peinliches Hobby", "Memes", "Instagram-Trend", "Cringe-Song",
+    "Ex-Name", "Spitzname", "Schulfach", "Lustige Ausrede"
+]
+
+DEFAULT_TERMS_NSFW = [
+    # 18+ / Erwachsene
+    "Sexstellung", "Kondom-Marke", "Pornostar", "Erotikfilm",
+    "Pickup-Line", "Körperteil", "One-Night-Stand-Ort",
+    "Peinlichstes Date", "Fetisch", "Schmutziges Wort",
+    "Schlimmster Kater-Ort", "Drogenname", "Stripper-Name",
+    "Sexspielzeug", "Anmachspruch", "Rollenspiel-Fantasie",
+    "Peinlichster Bettunfall", "Exotische Vorliebe", "Pornotitel",
+    "Kuscheltier mit schmutzigem Namen", "Peinlichster Porno-Suchbegriff",
+    "Dirty Talk Satz", "Verbotene Fantasie"
+]
+
+# -----------------------------
 # Multi-Room, per-player state
 # -----------------------------
-# rooms[room_id] = {
-#   'score': int,
-#   'round': int,
-#   'revealed': bool,
-#   'current_term': str,
-#   'answers': {'p1': str|None, 'p2': str|None},
-#   'terms': [str],
-#   'term_i': int
-# }
 rooms = {}
-
-DEFAULT_TERMS = [
-    "Sportart", "Tier", "Stadt", "Frucht", "Land",
-    "Beruf", "Film", "Farbe", "Musikinstrument"
-]
 
 def ensure_room(room_id: str):
     if not room_id:
@@ -32,10 +47,11 @@ def ensure_room(room_id: str):
             'score': 0,
             'round': 1,
             'revealed': False,
-            'current_term': DEFAULT_TERMS[0],
+            'current_term': DEFAULT_TERMS_SFW[0],
             'answers': {'p1': None, 'p2': None},
-            'terms': DEFAULT_TERMS.copy(),
-            'term_i': 1,  # next index
+            'terms': DEFAULT_TERMS_SFW.copy(),
+            'term_i': 1,
+            'mode': 'SFW'  # or 'NSFW'
         }
     return rooms[room_id]
 
@@ -47,7 +63,7 @@ def next_term(state: dict):
     return t
 
 # -----------------------------
-# Templates
+# Templates (Player + Admin)
 # -----------------------------
 BASE_CSS = """
   <meta charset='utf-8'/>
@@ -109,43 +125,27 @@ PLAYER_PAGE = r"""
 
 <script>
 const room = {{room|tojson}};
-const player = {{player|tojson}}; // 'p1' | 'p2'
+const player = {{player|tojson}};
 const $ = (id) => document.getElementById(id);
 
 let lastRound = null;
-let submitted = false; // becomes true after we send our answer
+let submitted = false;
 
 function render(s){
-  document.title = `Reveal-Game · ${room}`;
   $("term").textContent = s.current_term;
   $("score").textContent = s.score;
 
-  // Manage input without wiping local typing
   const input = $("answer");
   const serverVal = s.answers[player] ?? '';
   const focused = document.activeElement === input;
-
-  // Clear input when a NEW round starts
-  if (lastRound !== s.round) {
+  if (lastRound !== s.round){
     input.value = '';
     submitted = false;
     lastRound = s.round;
   }
+  if (submitted && serverVal && input.value !== serverVal){ input.value = serverVal; }
+  if (!submitted && serverVal && (!focused || input.value.trim()==='')){ input.value = serverVal; }
 
-  // If we already submitted, prefer the server value (if any)
-  if (submitted && serverVal && input.value !== serverVal) {
-    input.value = serverVal;
-  }
-
-  // If we have NOT submitted yet, never clobber local typing with empty server state
-  if (!submitted) {
-    // Only set from server if server actually has a non-empty value and user isn't typing
-    if (serverVal && (!focused || input.value.trim() === '')) {
-      input.value = serverVal;
-    }
-  }
-
-  // Reveal block
   if(s.revealed){
     $("reveal").classList.remove("hidden");
     $("ans1").textContent = s.answers.p1 ?? '—';
@@ -161,14 +161,11 @@ function render(s){
 
 async function getState(){
   const res = await fetch(`/state?room=${encodeURIComponent(room)}&player=${encodeURIComponent(player)}`);
-  const s = await res.json();
-  render(s);
+  render(await res.json());
 }
 
 async function postJSON(path, body){
-  const res = await fetch(`${path}?room=${encodeURIComponent(room)}&player=${encodeURIComponent(player)}`, {
-    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body||{})
-  });
+  const res = await fetch(`${path}?room=${encodeURIComponent(room)}&player=${encodeURIComponent(player)}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{})});
   return res.json();
 }
 
@@ -181,24 +178,13 @@ $("btn-lock").addEventListener('click', async ()=>{
   render(s);
 });
 
-$("btn-award").addEventListener('click', async ()=>{
-  const s = await postJSON('/award');
-  render(s);
-});
+$("btn-award").addEventListener('click', async ()=>{ render(await postJSON('/award')); });
+$("btn-next").addEventListener('click', async ()=>{ render(await postJSON('/next')); $("answer").focus(); });
 
-$("btn-next").addEventListener('click', async ()=>{
-  const s = await postJSON('/next');
-  // render will detect new round and clear input
-  render(s);
-  $("answer").focus();
-});
-
-$("answer").addEventListener('keydown', (e)=>{
-  if(e.key==='Enter') $("btn-lock").click();
-});
+$("answer").addEventListener('keydown', (e)=>{ if(e.key==='Enter') $("btn-lock").click(); });
 
 getState();
-setInterval(getState, 1500); // light polling to sync with the other player
+setInterval(getState, 1500);
 </script>
 </body></html>
 """
@@ -211,37 +197,29 @@ ADMIN_PAGE = r"""
     <a href="/play?room={{room}}&player=p1" class="text-sm underline">Zur Spieler-Ansicht</a>
   </header>
 
+  <div class="mb-4 text-sm">Aktueller Modus: <span id="mode">–</span></div>
+
+  <div class="flex gap-3 mb-6">
+    <button id="btn-sfw" class="px-3 py-2 rounded-xl bg-slate-700 text-white">Jugendfrei</button>
+    <button id="btn-nsfw" class="px-3 py-2 rounded-xl bg-rose-700 text-white">18+</button>
+  </div>
+
   <div class="bg-white shadow rounded-2xl p-5 mb-4">
     <div class="grid grid-cols-3 gap-4">
-      <div>
-        <div class="text-xs uppercase text-slate-500">Begriff</div>
-        <div id="term" class="text-2xl font-semibold">–</div>
-      </div>
-      <div>
-        <div class="text-xs uppercase text-slate-500">Score</div>
-        <div id="score" class="text-2xl font-semibold">0</div>
-      </div>
-      <div>
-        <div class="text-xs uppercase text-slate-500">Runde</div>
-        <div id="round" class="text-2xl font-semibold">1</div>
-      </div>
+      <div><div class="text-xs uppercase text-slate-500">Begriff</div><div id="term" class="text-2xl font-semibold">–</div></div>
+      <div><div class="text-xs uppercase text-slate-500">Score</div><div id="score" class="text-2xl font-semibold">0</div></div>
+      <div><div class="text-xs uppercase text-slate-500">Runde</div><div id="round" class="text-2xl font-semibold">1</div></div>
     </div>
   </div>
 
   <div class="bg-white shadow rounded-2xl p-5 mb-4">
     <div class="grid grid-cols-2 gap-4">
-      <div>
-        <div class="text-xs text-slate-500">Spieler 1</div>
-        <div id="ans1" class="text-xl font-semibold">–</div>
-      </div>
-      <div>
-        <div class="text-xs text-slate-500">Spieler 2</div>
-        <div id="ans2" class="text-xl font-semibold">–</div>
-      </div>
+      <div><div class="text-xs text-slate-500">Spieler 1</div><div id="ans1" class="text-xl font-semibold">–</div></div>
+      <div><div class="text-xs text-slate-500">Spieler 2</div><div id="ans2" class="text-xl font-semibold">–</div></div>
     </div>
   </div>
 
-  <div class="flex gap-3">
+  <div class="flex gap-3 mb-4">
     <button id="btn-award" class="px-4 py-2 rounded-xl bg-emerald-600 text-white">+1 Punkt</button>
     <button id="btn-next" class="px-4 py-2 rounded-xl bg-indigo-600 text-white">Nächster Begriff</button>
   </div>
@@ -262,6 +240,7 @@ function render(s){
   $("round").textContent = s.round;
   $("ans1").textContent = s.answers.p1 ?? '—';
   $("ans2").textContent = s.answers.p2 ?? '—';
+  $("mode").textContent = s.mode;
 }
 
 async function getState(){
@@ -281,6 +260,9 @@ $("btn-apply-terms").addEventListener('click', async ()=>{
   if(parts.length) render(await postJSON('/set_terms', {terms: parts}));
 });
 
+$("btn-sfw").addEventListener('click', async ()=>{ render(await postJSON('/set_mode', {mode:'SFW'})); });
+$("btn-nsfw").addEventListener('click', async ()=>{ render(await postJSON('/set_mode', {mode:'NSFW'})); });
+
 getState();
 setInterval(getState, 1200);
 </script>
@@ -292,11 +274,9 @@ setInterval(getState, 1200);
 # -----------------------------
 @app.get('/')
 def home():
-    # Simple landing that creates/chooses a room and player
     room = request.args.get('room')
     player = request.args.get('player', 'p1')
     if not room:
-        # generate a short room code
         room = ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(5))
         return redirect(url_for('play', room=room, player='p1'))
     return redirect(url_for('play', room=room, player=player))
@@ -327,13 +307,13 @@ def get_state():
     state = ensure_room(room)
     if state is None:
         return jsonify({'error':'room not found'}), 404
-    # Redact other player's answer until revealed
     out = {
         'score': state['score'],
         'round': state['round'],
         'revealed': state['revealed'],
         'current_term': state['current_term'],
         'answers': {'p1': state['answers']['p1'], 'p2': state['answers']['p2']},
+        'mode': state['mode']
     }
     if not state['revealed'] and player in ('p1','p2'):
         other = 'p2' if player=='p1' else 'p1'
@@ -351,80 +331,4 @@ def post_answer():
         return jsonify({'error':'invalid player'}), 400
     if state['revealed']:
         return jsonify({'error':'already revealed'}), 400
-    data = request.get_json(force=True)
-    text = (data.get('text') or '').strip()
-    state['answers'][player] = text
-    return get_state()
-
-@app.post('/reveal')
-def reveal():
-    room = request.args.get('room')
-    state = ensure_room(room)
-    if state is None:
-        return jsonify({'error':'room not found'}), 404
-    if not (state['answers']['p1'] and state['answers']['p2']):
-        return jsonify({'error':'need both answers'}), 400
-    state['revealed'] = True
-    return get_state()
-
-@app.post('/award')
-def award():
-    room = request.args.get('room')
-    state = ensure_room(room)
-    if state is None:
-        return jsonify({'error':'room not found'}), 404
-    if not state['revealed']:
-        return jsonify({'error':'not revealed yet'}), 400
-    a1 = (state['answers']['p1'] or '').strip().lower()
-    a2 = (state['answers']['p2'] or '').strip().lower()
-    if a1 and a1 == a2:
-        state['score'] += 1
-    return get_state()
-
-@app.post('/next')
-def next_round():
-    room = request.args.get('room')
-    state = ensure_room(room)
-    if state is None:
-        return jsonify({'error':'room not found'}), 404
-    state['round'] += 1
-    state['revealed'] = False
-    state['answers'] = {'p1': None, 'p2': None}
-    state['current_term'] = next_term(state)
-    return get_state()
-
-@app.post('/reset')
-def reset():
-    room = request.args.get('room')
-    state = ensure_room(room)
-    if state is None:
-        return jsonify({'error':'room not found'}), 404
-    state['score'] = 0
-    state['round'] = 1
-    state['revealed'] = False
-    state['answers'] = {'p1': None, 'p2': None}
-    state['term_i'] = 1
-    state['current_term'] = state['terms'][0]
-    return get_state()
-
-@app.post('/set_terms')
-def set_terms():
-    room = request.args.get('room')
-    state = ensure_room(room)
-    if state is None:
-        return jsonify({'error':'room not found'}), 404
-    data = request.get_json(force=True)
-    terms = data.get('terms') or []
-    if not isinstance(terms, list) or not all(isinstance(x, str) and x.strip() for x in terms):
-        return jsonify({'error': 'invalid terms'}), 400
-    state['terms'] = [t.strip() for t in terms if t.strip()]
-    state['term_i'] = 1
-    state['current_term'] = state['terms'][0]
-    state['round'] = 1
-    state['revealed'] = False
-    state['answers'] = {'p1': None, 'p2': None}
-    return get_state()
-
-if __name__ == '__main__':
-    # Bind to all interfaces for hosting on a server.
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    data = request.get_json(force=True
