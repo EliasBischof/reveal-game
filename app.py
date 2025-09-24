@@ -331,4 +331,4 @@ def post_answer():
         return jsonify({'error':'invalid player'}), 400
     if state['revealed']:
         return jsonify({'error':'already revealed'}), 400
-    data = request.get_json(force=True
+    data = request.get_json(force=True)
