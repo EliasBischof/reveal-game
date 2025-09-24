@@ -92,58 +92,56 @@ BASE_CSS = """
   <meta charset='utf-8'/>
   <meta name='viewport' content='width=device-width, initial-scale=1'/>
   <title>Reveal-Game</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="/assets/style.css" rel="stylesheet">
 """
 
 PLAYER_PAGE = r"""
-<!doctype html><html lang=\"de\"><head>{{base_css|safe}}</head><body class=\"min-h-screen bg-slate-50 text-slate-800\">
-<div class=\"max-w-2xl mx-auto p-6\">
-  <header class=\"flex items-center justify-between mb-6\">
-    <h1 class=\"text-2xl font-bold\">Reveal-Game · Raum {{room}}</h1>
-    <div class=\"text-sm text-slate-500\">Spieler: {{player|upper}} · Modus: <span id=\"mode\">–</span></div>
+<!doctype html><html lang=\"de\"><head>{{base_css|safe}}</head><body>
+<div class=\"container\">
+  <header class=\"header\">
+    <h1 class=\"title\">Reveal-Game · Raum {{room}}</h1>
+    <div class=\"muted\">Spieler: {{player|upper}} · Modus: <span id=\"mode\">–</span></div>
   </header>
 
-  <div class=\"bg-white shadow rounded-2xl p-5 mb-4\">
-    <div class=\"flex items-center justify-between\">
+  <div class=\"card\">
+    <div class=\"row between\">
       <div>
-        <div class=\"text-xs uppercase tracking-wide text-slate-500\">Aktueller Begriff</div>
-        <div id=\"term\" class=\"text-2xl font-semibold mt-1\">–</div>
+        <div class=\"label\">Aktueller Begriff</div>
+        <div id=\"term\" class=\"value\">–</div>
       </div>
-      <div class=\"text-right\">
-        <div class=\"text-xs uppercase tracking-wide text-slate-500\">Punktestand</div>
-        <div id=\"score\" class=\"text-2xl font-semibold mt-1\">0</div>
-      </div>
-    </div>
-  </div>
-
-  <div class=\"bg-white shadow rounded-2xl p-5\">
-    <div class=\"text-sm font-medium text-slate-600 mb-2\">Deine Antwort ({{player|upper}})</div>
-    <input id=\"answer\" type=\"text\" placeholder=\"Antwort eingeben\" class=\"w-full border rounded-xl px-3 py-2 focus:outline-none focus:ring\" />
-  </div>
-
-  <div class=\"flex flex-wrap gap-3 mt-4\">
-    <button id=\"btn-lock\" class=\"px-4 py-2 rounded-xl bg-slate-800 text-white\">Antwort sperren &amp; zeigen</button>
-    <button id=\"btn-award\" class=\"px-4 py-2 rounded-xl bg-emerald-600 text-white hidden\">+1 Punkt</button>
-    <button id=\"btn-next\" class=\"px-4 py-2 rounded-xl bg-indigo-600 text-white hidden\">Nächster Begriff</button>
-  </div>
-
-  <div id=\"reveal\" class=\"mt-6 hidden\">
-    <div class=\"bg-white shadow rounded-2xl p-5\">
-      <div class=\"text-xs uppercase tracking-wide text-slate-500 mb-3\">Antworten</div>
-      <div class=\"grid grid-cols-1 md:grid-cols-2 gap-4\">
-        <div>
-          <div class=\"text-xs text-slate-500\">Spieler 1</div>
-          <div id=\"ans1\" class=\"text-xl font-semibold\">–</div>
-        </div>
-        <div>
-          <div class=\"text-xs text-slate-500\">Spieler 2</div>
-          <div id=\"ans2\" class=\"text-xl font-semibold\">–</div>
-        </div>
+      <div class=\"right\">
+        <div class=\"label\">Punktestand</div>
+        <div id=\"score\" class=\"value\">0</div>
       </div>
     </div>
   </div>
 
-  <p class=\"text-xs text-slate-500 mt-6\">Tipp: Teile diese URL mit deinem Mitspieler (p1/p2 austauschen).</p>
+  <div class=\"card\">
+    <div class=\"label\">Deine Antwort ({{player|upper}})</div>
+    <input id=\"answer\" type=\"text\" placeholder=\"Antwort eingeben\" class=\"input\" />
+  </div>
+
+  <div class=\"actions\">
+    <button id=\"btn-lock\" class=\"btn btn-dark\">Antwort sperren &amp; zeigen</button>
+    <button id=\"btn-award\" class=\"btn btn-success hidden\">+1 Punkt</button>
+    <button id=\"btn-next\" class=\"btn btn-indigo hidden\">Nächster Begriff</button>
+  </div>
+
+  <div id=\"reveal\" class=\"card hidden\">
+    <div class=\"label\">Antworten</div>
+    <div class=\"grid two\">
+      <div>
+        <div class=\"label small\">Spieler 1</div>
+        <div id=\"ans1\" class=\"value\">–</div>
+      </div>
+      <div>
+        <div class=\"label small\">Spieler 2</div>
+        <div id=\"ans2\" class=\"value\">–</div>
+      </div>
+    </div>
+  </div>
+
+  <p class=\"hint\">Tipp: Teile diese URL mit deinem Mitspieler (p1/p2 austauschen).</p>
 </div>
 
 <script>
@@ -215,44 +213,44 @@ setInterval(getState, 1500);
 """
 
 ADMIN_PAGE = r"""
-<!doctype html><html lang=\"de\"><head>{{base_css|safe}}</head><body class=\"min-h-screen bg-slate-50 text-slate-800\">
-<div class=\"max-w-3xl mx-auto p-6\">
-  <header class=\"flex items-center justify-between mb-6\">
-    <h1 class=\"text-2xl font-bold\">Reveal-Game · Admin · Raum {{room}}</h1>
-    <a href=\"/play?room={{room}}&player=p1\" class=\"text-sm underline\">Zur Spieler-Ansicht</a>
+<!doctype html><html lang=\"de\"><head>{{base_css|safe}}</head><body>
+<div class=\"container\">
+  <header class=\"header\">
+    <h1 class=\"title\">Reveal-Game · Admin · Raum {{room}}</h1>
+    <a href=\"/play?room={{room}}&player=p1\" class=\"link\">Zur Spieler-Ansicht</a>
   </header>
 
-  <div class=\"mb-4 text-sm\">Aktueller Modus: <span id=\"mode\">–</span></div>
+  <div class=\"muted\">Aktueller Modus: <span id=\"mode\">–</span></div>
 
-  <div class=\"flex gap-3 mb-6\">
-    <button id=\"btn-sfw\" class=\"px-3 py-2 rounded-xl bg-slate-700 text-white\">Jugendfrei</button>
-    <button id=\"btn-nsfw\" class=\"px-3 py-2 rounded-xl bg-rose-700 text-white\">18+</button>
+  <div class=\"actions\">
+    <button id=\"btn-sfw\" class=\"btn\">Jugendfrei</button>
+    <button id=\"btn-nsfw\" class=\"btn btn-danger\">18+</button>
   </div>
 
-  <div class=\"bg-white shadow rounded-2xl p-5 mb-4\">
-    <div class=\"grid grid-cols-3 gap-4\">
-      <div><div class=\"text-xs uppercase text-slate-500\">Begriff</div><div id=\"term\" class=\"text-2xl font-semibold\">–</div></div>
-      <div><div class=\"text-xs uppercase text-slate-500\">Score</div><div id=\"score\" class=\"text-2xl font-semibold\">0</div></div>
-      <div><div class=\"text-xs uppercase text-slate-500\">Runde</div><div id=\"round\" class=\"text-2xl font-semibold\">1</div></div>
+  <div class=\"card\">
+    <div class=\"grid three\">
+      <div><div class=\"label\">Begriff</div><div id=\"term\" class=\"value\">–</div></div>
+      <div><div class=\"label\">Score</div><div id=\"score\" class=\"value\">0</div></div>
+      <div><div class=\"label\">Runde</div><div id=\"round\" class=\"value\">1</div></div>
     </div>
   </div>
 
-  <div class=\"bg-white shadow rounded-2xl p-5 mb-4\">
-    <div class=\"grid grid-cols-2 gap-4\">
-      <div><div class=\"text-xs text-slate-500\">Spieler 1</div><div id=\"ans1\" class=\"text-xl font-semibold\">–</div></div>
-      <div><div class=\"text-xs text-slate-500\">Spieler 2</div><div id=\"ans2\" class=\"text-xl font-semibold\">–</div></div>
+  <div class=\"card\">
+    <div class=\"grid two\">
+      <div><div class=\"label small\">Spieler 1</div><div id=\"ans1\" class=\"value\">–</div></div>
+      <div><div class=\"label small\">Spieler 2</div><div id=\"ans2\" class=\"value\">–</div></div>
     </div>
   </div>
 
-  <div class=\"flex gap-3 mb-4\">
-    <button id=\"btn-award\" class=\"px-4 py-2 rounded-xl bg-emerald-600 text-white\">+1 Punkt</button>
-    <button id=\"btn-next\" class=\"px-4 py-2 rounded-xl bg-indigo-600 text-white\">Nächster Begriff</button>
+  <div class=\"actions\">
+    <button id=\"btn-award\" class=\"btn btn-success\">+1 Punkt</button>
+    <button id=\"btn-next\" class=\"btn btn-indigo\">Nächster Begriff</button>
   </div>
 
-  <div class=\"mt-8\">
-    <h2 class=\"font-semibold mb-2\">Eigene Begriffe setzen</h2>
-    <textarea id=\"customTerms\" rows=\"3\" class=\"w-full border rounded-xl px-3 py-2\" placeholder=\"z.B. Planet, Automarke, Pokémon\"></textarea>
-    <button id=\"btn-apply-terms\" class=\"mt-2 px-3 py-2 rounded-xl bg-slate-700 text-white\">Übernehmen</button>
+  <div class=\"card\">
+    <h2 class=\"subtitle\">Eigene Begriffe setzen</h2>
+    <textarea id=\"customTerms\" rows=\"3\" class=\"input\" placeholder=\"z.B. Planet, Automarke, Pokémon\"></textarea>
+    <button id=\"btn-apply-terms\" class=\"btn\">Übernehmen</button>
   </div>
 </div>
 <script>
@@ -262,7 +260,7 @@ const $ = (id) => document.getElementById(id);
 function render(s){
   $("term").textContent = s.current_term;
   $("score").textContent = s.score;
-  $(("round")).textContent = s.round;
+  $("round").textContent = s.round;
   $("ans1").textContent = s.answers.p1 ?? '—';
   $("ans2").textContent = s.answers.p2 ?? '—';
   $("mode").textContent = s.mode;
@@ -439,6 +437,20 @@ def set_mode():
     rooms[room] = _new_state(mode)
     rooms[room]['score'] = keep_score
     return jsonify(serialize_state(rooms[room], requester))
+
+# -----------------------------
+# Local static CSS (single-file deploy)
+# -----------------------------
+CSS = r"""
+:root{--bg:#f8fafc;--fg:#0f172a;--muted:#64748b;--card:#ffffff;--border:#e2e8f0;--shadow:0 6px 20px rgba(0,0,0,.06);}*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans",sans-serif}.container{max-width:960px;margin:0 auto;padding:24px}.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}.title{font-size:24px;margin:0}.subtitle{font-size:18px;margin:0 0 8px 0}.muted{color:var(--muted);font-size:14px}.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}.row{display:flex;gap:16px}.between{justify-content:space-between}.right{text-align:right}.label{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:6px}.label.small{text-transform:none;font-size:12px;color:var(--muted)}.value{font-size:22px;font-weight:600}.input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:12px;outline:none}.input:focus{border-color:#6366f1;box-shadow:0 0 0 4px rgba(99,102,241,.15)}.actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}.btn{appearance:none;border:1px solid transparent;background:#0f172a;color:#fff;border-radius:12px;padding:10px 14px;cursor:pointer;box-shadow:var(--shadow)}.btn:hover{opacity:.95}.btn:disabled{opacity:.5;cursor:not-allowed}.btn-dark{background:#0f172a}.btn-success{background:#10b981}.btn-indigo{background:#6366f1}.btn-danger{background:#e11d48}.link{color:#6366f1;text-decoration:underline}.grid{display:grid;gap:16px}.grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}.grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}.hidden{display:none}.hint{font-size:12px;color:var(--muted);margin-top:8px}
+@media (max-width:720px){.grid.two,.grid.three{grid-template-columns:1fr}}
+"""
+
+from flask import Response
+
+@app.get('/assets/style.css')
+def style_css():
+    return Response(CSS, mimetype='text/css')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
