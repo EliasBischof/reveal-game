@@ -112,11 +112,40 @@ const room = {{room|tojson}};
 const player = {{player|tojson}}; // 'p1' | 'p2'
 const $ = (id) => document.getElementById(id);
 
+let lastRound = null;
+let submitted = false; // becomes true after we send our answer
+
 function render(s){
   document.title = `Reveal-Game · ${room}`;
   $("term").textContent = s.current_term;
   $("score").textContent = s.score;
-  // Only show answers after reveal; before reveal, server redacts the other player's answer
+
+  // Manage input without wiping local typing
+  const input = $("answer");
+  const serverVal = s.answers[player] ?? '';
+  const focused = document.activeElement === input;
+
+  // Clear input when a NEW round starts
+  if (lastRound !== s.round) {
+    input.value = '';
+    submitted = false;
+    lastRound = s.round;
+  }
+
+  // If we already submitted, prefer the server value (if any)
+  if (submitted && serverVal && input.value !== serverVal) {
+    input.value = serverVal;
+  }
+
+  // If we have NOT submitted yet, never clobber local typing with empty server state
+  if (!submitted) {
+    // Only set from server if server actually has a non-empty value and user isn't typing
+    if (serverVal && (!focused || input.value.trim() === '')) {
+      input.value = serverVal;
+    }
+  }
+
+  // Reveal block
   if(s.revealed){
     $("reveal").classList.remove("hidden");
     $("ans1").textContent = s.answers.p1 ?? '—';
@@ -128,7 +157,6 @@ function render(s){
     $("btn-award").classList.add("hidden");
     $("btn-next").classList.add("hidden");
   }
-  $("answer").value = s.answers[player] ?? '';
 }
 
 async function getState(){
@@ -147,6 +175,7 @@ async function postJSON(path, body){
 $("btn-lock").addEventListener('click', async ()=>{
   const text = $("answer").value.trim();
   if(!text) return;
+  submitted = true;
   await postJSON('/answer', {text});
   const s = await postJSON('/reveal');
   render(s);
@@ -159,6 +188,7 @@ $("btn-award").addEventListener('click', async ()=>{
 
 $("btn-next").addEventListener('click', async ()=>{
   const s = await postJSON('/next');
+  // render will detect new round and clear input
   render(s);
   $("answer").focus();
 });
