@@ -4,11 +4,18 @@ import string, random
 app = Flask(__name__)
 
 # -----------------------------
-# Simple terms list
+# Simple terms list (shuffled once at startup)
 # -----------------------------
-import random
 TERMS = [
-    "Safeword", "Ex-Name", "Lustige Ausrede", "Peinlichstes Date", "Disney-Figur", "Harry-Potter-Charakter", "Farbe", "Peinlichster Porno-Suchbegriff", "Kindheitsserie", "Körperteil", "Peinlicher Chat-Screenshot", "Schimpfwort", "Superheld", "Trinkspiel", "Schlechtester Anmachspruch", "Cringe-Song", "Peinlichster Bettunfall", "Drogenname", "Beruf", "Sänger", "Frucht", "Serie", "Marke", "Ort für schnellen Sex", "Kleidungsstück", "Sportart", "Musikinstrument", "Pornotitel", "Instagram-Trend", "Schlimmster Kater-Ort", "Peinliches Hobby", "Exotische Vorliebe", "Memes", "Computerspiel", "Schulfach", "Schauspieler", "Auto-Marke", "Stadt", "Erotikfilm", "Beleidigung", "Emoji", "Pornostar", "Land", "YouTuber", "One-Night-Stand-Ort", "Schmutziges Wort", "Sexstellung", "Planetenname", "Dirty Talk Satz", "Codewort fürs Abhauen", "NSFW-Emoji", "Schlimmstes Date-Ende", "Peinlichster Chat-Screenshot", "Essen", "Pickup-Line", "Stripper-Name", "Schlechtester Anmachspruch", "Film", "Getränk", "Spitzname", "Verbotene Fantasie", "Lustige Ausrede", "Sexspielzeug", "Kink", "Anmachspruch"
+    "Safeword", "Ex-Name", "Lustige Ausrede", "Peinlichstes Date", "One-Piece-Figur",
+    "Farbe", "Peinlichster Porno-Suchbegriff", "Kindheitsserie", "Körperteil", "Peinlicher Chat-Screenshot",
+    "Schimpfwort", "Superheld", "Trinkspiel", "Schlechtester Anmachspruch", "Cringe-Song", "Peinlichster Bettunfall",
+    "Drogenname", "Beruf", "Sänger", "Frucht", "Serie", "Marke", "Ort für schnellen Sex", "Kleidungsstück", "Sportart",
+    "Musikinstrument", "Pornotitel", "Instagram-Trend", "Schlimmster Kater-Ort", "Peinliches Hobby", "Exotische Vorliebe",
+    "Memes", "Computerspiel", "Schulfach", "Schauspieler", "Auto-Marke", "Stadt", "Erotikfilm", "Beleidigung", "Emoji", "Pornostar",
+    "Land", "YouTuber", "One-Night-Stand-Ort", "Schmutziges Wort", "Sexstellung", "Planetenname", "Dirty Talk Satz", "Codewort fürs Abhauen",
+    "NSFW-Emoji", "Schlimmstes Date-Ende", "Peinlichster Chat-Screenshot", "Essen", "Pickup-Line", "Stripper-Name", "Schlechtester Anmachspruch",
+    "Film", "Getränk", "Spitzname", "Verbotene Fantasie", "Lustige Ausrede", "Sexspielzeug", "Kink", "Anmachspruch"
 ]
 random.shuffle(TERMS)
 
@@ -25,6 +32,7 @@ def _new_state():
         'revealed': False,
         'current_term': TERMS[0],
         'answers': {'p1': None, 'p2': None},
+        'names': {'p1': None, 'p2': None},
         'term_i': 1
     }
 
@@ -50,6 +58,7 @@ def serialize_state(state: dict, requester: str):
         'revealed': state['revealed'],
         'current_term': state['current_term'],
         'answers': {'p1': state['answers']['p1'], 'p2': state['answers']['p2']},
+        'names': state['names']
     }
     if not state['revealed'] and requester in ('p1', 'p2'):
         other = 'p2' if requester == 'p1' else 'p1'
@@ -71,50 +80,63 @@ PLAYER_PAGE = r"""
 <div class="max-w-2xl mx-auto p-6">
   <header class="flex items-center justify-between mb-6">
     <h1 class="text-2xl font-bold">Reveal-Game · Raum {{room}}</h1>
-    <div class="text-sm text-slate-500">Spieler: {{player|upper}}</div>
+    <div class="text-sm text-slate-500">Spieler: <span id="who">–</span></div>
   </header>
 
-  <div class="bg-white shadow rounded-2xl p-5 mb-4">
-    <div class="flex items-center justify-between">
-      <div>
-        <div class="text-xs uppercase tracking-wide text-slate-500">Aktueller Begriff</div>
-        <div id="term" class="text-2xl font-semibold mt-1">–</div>
-      </div>
-      <div class="text-right">
-        <div class="text-xs uppercase tracking-wide text-slate-500">Punktestand</div>
-        <div id="score" class="text-2xl font-semibold mt-1">0</div>
+  <!-- Name Setup -->
+  <div id="name-setup" class="bg-white shadow rounded-2xl p-5 mb-4 hidden">
+    <div class="text-sm text-slate-600 mb-2">Bitte gib deinen Namen ein, bevor ihr startet:</div>
+    <div class="flex gap-2">
+      <input id="name-input" type="text" placeholder="Dein Name" class="flex-1 border rounded-xl px-3 py-2 focus:outline-none focus:ring" />
+      <button id="btn-setname" class="px-4 py-2 rounded-xl bg-slate-800 text-white">OK</button>
+    </div>
+    <p class="text-xs text-slate-500 mt-2">Dein Mitspieler macht das auf seiner Seite auch. Danach könnt ihr loslegen.</p>
+  </div>
+
+  <!-- Game Area -->
+  <div id="game-area" class="hidden">
+    <div class="bg-white shadow rounded-2xl p-5 mb-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-xs uppercase tracking-wide text-slate-500">Aktueller Begriff</div>
+          <div id="term" class="text-2xl font-semibold mt-1">–</div>
+        </div>
+        <div class="text-right">
+          <div class="text-xs uppercase tracking-wide text-slate-500">Punktestand</div>
+          <div id="score" class="text-2xl font-semibold mt-1">0</div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div class="bg-white shadow rounded-2xl p-5">
-    <div class="text-sm font-medium text-slate-600 mb-2">Deine Antwort ({{player|upper}})</div>
-    <input id="answer" type="text" placeholder="Antwort eingeben" class="w-full border rounded-xl px-3 py-2 focus:outline-none focus:ring" />
-  </div>
-
-  <div class="flex flex-wrap gap-3 mt-4">
-    <button id="btn-lock" class="px-4 py-2 rounded-xl bg-slate-800 text-white">Antwort sperren &amp; zeigen</button>
-    <button id="btn-award" class="px-4 py-2 rounded-xl bg-emerald-600 text-white hidden">+1 Punkt (ich entscheide)</button>
-    <button id="btn-next" class="px-4 py-2 rounded-xl bg-indigo-600 text-white hidden">Nächster Begriff</button>
-  </div>
-
-  <div id="reveal" class="mt-6 hidden">
     <div class="bg-white shadow rounded-2xl p-5">
-      <div class="text-xs uppercase tracking-wide text-slate-500 mb-3">Antworten</div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <div class="text-xs text-slate-500">Spieler 1</div>
-          <div id="ans1" class="text-xl font-semibold">–</div>
-        </div>
-        <div>
-          <div class="text-xs text-slate-500">Spieler 2</div>
-          <div id="ans2" class="text-xl font-semibold">–</div>
+      <div class="text-sm font-medium text-slate-600 mb-2">Deine Antwort (<span id="me-label">{{player|upper}}</span>)</div>
+      <input id="answer" type="text" placeholder="Antwort eingeben" class="w-full border rounded-xl px-3 py-2 focus:outline-none focus:ring" />
+    </div>
+
+    <div class="flex flex-wrap gap-3 mt-4">
+      <button id="btn-lock" class="px-4 py-2 rounded-xl bg-slate-800 text-white">Antwort sperren &amp; zeigen</button>
+      <button id="btn-award" class="px-4 py-2 rounded-xl bg-emerald-600 text-white hidden">+1 Punkt (ich entscheide)</button>
+      <button id="btn-next" class="px-4 py-2 rounded-xl bg-indigo-600 text-white hidden">Nächster Begriff</button>
+    </div>
+
+    <div id="reveal" class="mt-6 hidden">
+      <div class="bg-white shadow rounded-2xl p-5">
+        <div class="text-xs uppercase tracking-wide text-slate-500 mb-3">Antworten</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <div class="text-xs text-slate-500" id="p1-label">Spieler 1</div>
+            <div id="ans1" class="text-xl font-semibold">–</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-500" id="p2-label">Spieler 2</div>
+            <div id="ans2" class="text-xl font-semibold">–</div>
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <p class="text-xs text-slate-500 mt-6">Tipp: Teile diese URL mit deinem Mitspieler (p1/p2 austauschen).</p>
+    <p class="text-xs text-slate-500 mt-6">Tipp: Teile diese URL mit deinem Mitspieler (p1/p2 austauschen).</p>
+  </div>
 </div>
 
 <script>
@@ -125,7 +147,33 @@ const $ = (id) => document.getElementById(id);
 let lastRound = null;
 let submitted = false;
 
+function namesReady(s){
+  return (s.names && s.names.p1 && s.names.p2);
+}
+
+function applyNamesUI(s){
+  const me = player;
+  const other = player === 'p1' ? 'p2' : 'p1';
+  const meName = s.names[me] || me.toUpperCase();
+  const otherName = s.names[other] || other.toUpperCase();
+  $("who").textContent = meName;
+  $("me-label").textContent = meName;
+  $("p1-label").textContent = s.names.p1 || 'Spieler 1';
+  $("p2-label").textContent = s.names.p2 || 'Spieler 2';
+}
+
 function render(s){
+  // Toggle name setup vs game area
+  if (!s.names || !s.names[player]){
+    $("name-setup").classList.remove("hidden");
+    $("game-area").classList.add("hidden");
+  } else {
+    $("name-setup").classList.add("hidden");
+    $("game-area").classList.remove("hidden");
+  }
+
+  applyNamesUI(s);
+
   $("term").textContent = s.current_term;
   $("score").textContent = s.score;
 
@@ -140,6 +188,7 @@ function render(s){
   if (submitted && serverVal && input.value !== serverVal){ input.value = serverVal; }
   if (!submitted && serverVal && (!focused || input.value.trim()==='')){ input.value = serverVal; }
 
+  // Buttons nur für p1 nach Reveal sichtbar
   if(s.revealed && player==='p1'){
     $("reveal").classList.remove("hidden");
     $("ans1").textContent = s.answers.p1 ?? '—';
@@ -147,7 +196,6 @@ function render(s){
     $("btn-award").classList.remove("hidden");
     $("btn-next").classList.remove("hidden");
   } else {
-    // Spieler 2 sieht nur das Reveal-Panel (ohne Buttons), wenn revealed ist
     if (s.revealed && player==='p2') {
       $("reveal").classList.remove("hidden");
       $("ans1").textContent = s.answers.p1 ?? '—';
@@ -183,6 +231,15 @@ $("btn-award").addEventListener('click', async ()=>{ render(await postJSON('/awa
 $("btn-next").addEventListener('click', async ()=>{ render(await postJSON('/next')); $("answer").focus(); });
 
 $("answer").addEventListener('keydown', (e)=>{ if(e.key==='Enter') $("btn-lock").click(); });
+
+// Name setup handlers
+$("btn-setname").addEventListener('click', async ()=>{
+  const name = ($("name-input").value || '').trim();
+  if(!name) return;
+  await postJSON('/set_name', {name});
+  getState();
+});
+$("name-input").addEventListener('keydown', (e)=>{ if(e.key==='Enter') $("btn-setname").click(); });
 
 getState();
 setInterval(getState, 1500);
@@ -221,6 +278,22 @@ def get_state():
     if state is None:
         return jsonify({'error':'room not found'}), 404
     return jsonify(serialize_state(state, requester))
+
+@app.post('/set_name')
+def set_name():
+    room = request.args.get('room')
+    requester = request.args.get('player')
+    state = ensure_room(room)
+    if state is None:
+        return jsonify({'error':'room not found'}), 404
+    if requester not in ('p1','p2'):
+        return jsonify({'error':'invalid player'}), 400
+    data = request.get_json(force=True, silent=True) or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'error':'invalid name'}), 400
+    state['names'][requester] = name
+    return jsonify({'ok': True, 'names': state['names']})
 
 @app.post('/answer')
 def post_answer():
