@@ -26,14 +26,19 @@ rooms = {}
 
 
 def _new_state():
+    max_rounds = min(20, len(TERMS))
+    term_order = random.sample(range(len(TERMS)), k=max_rounds)  # 20 einzigartige zufällige Begriffe
     return {
         'score': 0,
-        'round': 1,
+        'round': 1,                 # 1-basiert
+        'max_rounds': max_rounds,   # standard 20
         'revealed': False,
-        'current_term': TERMS[0],
+        'game_over': False,
+        'term_order': term_order,   # Liste von Indizes in TERMS
+        'term_i': 0,                # aktueller Index in term_order
+        'current_term': TERMS[term_order[0]],
         'answers': {'p1': None, 'p2': None},
         'names': {'p1': None, 'p2': None},
-        'term_i': 1
     }
 
 
@@ -46,16 +51,23 @@ def ensure_room(room_id: str):
 
 
 def next_term(state: dict):
-    t = TERMS[state['term_i'] % len(TERMS)]
+    """Advance to next term if available, else mark game_over.
+    Returns the next term (or current if game over)."""
+    if state['term_i'] >= len(state['term_order']) - 1:
+        state['game_over'] = True
+        return state['current_term']
     state['term_i'] += 1
-    return t
+    next_idx = state['term_order'][state['term_i']]
+    return TERMS[next_idx]
 
 
 def serialize_state(state: dict, requester: str):
     out = {
         'score': state['score'],
         'round': state['round'],
+        'max_rounds': state['max_rounds'],
         'revealed': state['revealed'],
+        'game_over': state['game_over'],
         'current_term': state['current_term'],
         'answers': {'p1': state['answers']['p1'], 'p2': state['answers']['p2']},
         'names': state['names']
@@ -87,7 +99,7 @@ PLAYER_PAGE = r"""
   <div id="name-setup" class="bg-white shadow rounded-2xl p-5 mb-4 hidden">
     <div class="text-sm text-slate-600 mb-2">Bitte gib deinen Namen ein, bevor ihr startet:</div>
     <div class="flex gap-2">
-      <input id="name-input" type="text" placeholder="Dein Name" class="flex-1 border rounded-xl px-3 py-2 focus:outline-none focus:ring" />
+      <input id=\"name-input\" type=\"text\" maxlength=\"25\" placeholder=\"Dein Name\" class=\"flex-1 border rounded-xl px-3 py-2 focus:outline-none focus:ring\" />
       <button id="btn-setname" class="px-4 py-2 rounded-xl bg-slate-800 text-white">OK</button>
     </div>
     <p class="text-xs text-slate-500 mt-2">Dein Mitspieler macht das auf seiner Seite auch. Danach könnt ihr loslegen.</p>
@@ -101,11 +113,16 @@ PLAYER_PAGE = r"""
           <div class="text-xs uppercase tracking-wide text-slate-500">Aktueller Begriff</div>
           <div id="term" class="text-2xl font-semibold mt-1">–</div>
         </div>
-        <div class="text-right">
-          <div class="text-xs uppercase tracking-wide text-slate-500">Punktestand</div>
-          <div id="score" class="text-2xl font-semibold mt-1">0</div>
+        <div class=\"text-right\">
+          <div class=\"text-xs uppercase tracking-wide text-slate-500\">Punktestand</div>
+          <div id=\"score\" class=\"text-2xl font-semibold mt-1\">0</div>
         </div>
       </div>
+      <div class=\"mt-3 flex items-center gap-4\">
+        <div class=\"text-xs uppercase tracking-wide text-slate-500\">Runde</div>
+        <div><span id=\"round\">1</span>/<span id=\"maxrounds\">20</span></div>
+      </div>
+    </div>
     </div>
 
     <div class="bg-white shadow rounded-2xl p-5">
@@ -163,6 +180,23 @@ function applyNamesUI(s){
 }
 
 function render(s){
+  // Game over screen
+  if (s.game_over) {
+    $("name-setup").classList.add("hidden");
+    $("game-area").classList.add("hidden");
+    if (!document.getElementById('gameover')) {
+      const wrap = document.createElement('div');
+      wrap.id = 'gameover';
+      wrap.className = 'bg-white shadow rounded-2xl p-6 text-center max-w-xl mx-auto';
+      wrap.innerHTML = `<h2 class="text-2xl font-bold mb-2">Fertig!</h2>
+        <p class="text-slate-600">Ihr habt <strong id="final-score"></strong> von <strong id="final-max"></strong> richtig.</p>`;
+      document.body.querySelector('.max-w-2xl')?.appendChild(wrap);
+    }
+    $("final-score").textContent = s.score;
+    $("final-max").textContent = s.max_rounds;
+    return; // stop rendering rest
+  }
+
   // Toggle name setup vs game area
   if (!s.names || !s.names[player]){
     $("name-setup").classList.remove("hidden");
@@ -176,6 +210,8 @@ function render(s){
 
   $("term").textContent = s.current_term;
   $("score").textContent = s.score;
+  $("round").textContent = s.round;
+  $("maxrounds").textContent = s.max_rounds;
 
   const input = $("answer");
   const serverVal = s.answers[player] ?? '';
@@ -290,8 +326,8 @@ def set_name():
         return jsonify({'error':'invalid player'}), 400
     data = request.get_json(force=True, silent=True) or {}
     name = (data.get('name') or '').strip()
-    if not name:
-        return jsonify({'error':'invalid name'}), 400
+    if not name or len(name) > 25:
+        return jsonify({'error':'invalid name (1-25 chars)'}), 400
     state['names'][requester] = name
     return jsonify({'ok': True, 'names': state['names']})
 
@@ -349,6 +385,14 @@ def next_round():
         return jsonify({'error':'room not found'}), 404
     if requester != 'p1':
         return jsonify({'error':'only player 1 can go next'}), 403
+    if state['game_over']:
+        return jsonify(serialize_state(state, requester))
+    # Wenn wir am Ende sind, Spiel beenden
+    if state['term_i'] >= len(state['term_order']) - 1:
+        state['revealed'] = False
+        state['game_over'] = True
+        return jsonify(serialize_state(state, requester))
+    # Nächster Begriff
     state['round'] += 1
     state['revealed'] = False
     state['answers'] = {'p1': None, 'p2': None}
