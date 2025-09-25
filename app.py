@@ -28,6 +28,8 @@ def _new_state():
     return {
         'score': 0,
         'round': 1,
+        'max_rounds': 20,   # <- Limit
+        'game_over': False, # <- Flag nach Runde 20
         'revealed': False,
         'current_term': TERMS[0],
         'answers': {'p1': None, 'p2': None},
@@ -51,6 +53,8 @@ def serialize_state(state: dict, requester: str):
     out = {
         'score': state['score'],
         'round': state['round'],
+        'max_rounds': state.get('max_rounds', 20),
+        'game_over': state.get('game_over', False),
         'revealed': state['revealed'],
         'current_term': state['current_term'],
         'answers': {'p1': state['answers']['p1'], 'p2': state['answers']['p2']},
@@ -101,6 +105,11 @@ PLAYER_PAGE = r"""
           <div class="text-xs uppercase tracking-wide text-slate-500">Punktestand</div>
           <div id="score" class="text-2xl font-semibold mt-1">0</div>
         </div>
+      </div>
+      <!-- Runde X / Y -->
+      <div class="mt-3 flex items-center gap-4">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Runde</div>
+        <div><span id="round">1</span>/<span id="maxrounds">20</span></div>
       </div>
     </div>
 
@@ -172,6 +181,8 @@ function render(s){
 
   $("term").textContent = s.current_term;
   $("score").textContent = s.score;
+  $("round").textContent = s.round;
+  $("maxrounds").textContent = s.max_rounds;
 
   const input = $("answer");
   const serverVal = s.answers[player] ?? '';
@@ -184,13 +195,18 @@ function render(s){
   if (submitted && serverVal && input.value !== serverVal){ input.value = serverVal; }
   if (!submitted && serverVal && (!focused || input.value.trim()==='')){ input.value = serverVal; }
 
-  // Buttons nur für p1 nach Reveal sichtbar
+  // Buttons nur für p1 nach Reveal sichtbar (und nicht bei game_over)
   if(s.revealed && player==='p1'){
     $("reveal").classList.remove("hidden");
     $("ans1").textContent = s.answers.p1 ?? '—';
     $("ans2").textContent = s.answers.p2 ?? '—';
-    $("btn-award").classList.remove("hidden");
-    $("btn-next").classList.remove("hidden");
+    if (!s.game_over) {
+      $("btn-award").classList.remove("hidden");
+      $("btn-next").classList.remove("hidden");
+    } else {
+      $("btn-award").classList.add("hidden");
+      $("btn-next").classList.add("hidden");
+    }
   } else {
     if (s.revealed && player==='p2') {
       $("reveal").classList.remove("hidden");
@@ -345,6 +361,14 @@ def next_round():
         return jsonify({'error':'room not found'}), 404
     if requester != 'p1':
         return jsonify({'error':'only player 1 can go next'}), 403
+    # Limit auf 20 Runden
+    if state.get('game_over'):
+        return jsonify(serialize_state(state, requester))
+    if state['round'] >= state.get('max_rounds', 20):
+        state['game_over'] = True
+        state['revealed'] = False
+        return jsonify(serialize_state(state, requester))
+    # Nächster Begriff
     state['round'] += 1
     state['revealed'] = False
     state['answers'] = {'p1': None, 'p2': None}
