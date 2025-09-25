@@ -6,17 +6,11 @@ app = Flask(__name__)
 # -----------------------------
 # Simple terms list
 # -----------------------------
+import random
 TERMS = [
-    "Safeword", "Ex-Name", "Lustige Ausrede", "Peinlichstes Date", "One-Piece-Figur",
-    "Farbe", "Peinlichster Porno-Suchbegriff", "Kindheitsserie", "Körperteil", "Peinlicher Chat-Screenshot",
-    "Schimpfwort", "Superheld", "Trinkspiel", "Schlechtester Anmachspruch", "Cringe-Song", "Peinlichster Bettunfall",
-    "Drogenname", "Beruf", "Sänger", "Frucht", "Serie", "Marke", "Ort für schnellen Sex", "Kleidungsstück", "Sportart",
-    "Musikinstrument", "Pornotitel", "Instagram-Trend", "Schlimmster Kater-Ort", "Peinliches Hobby", "Exotische Vorliebe",
-    "Memes", "Computerspiel", "Schulfach", "Schauspieler", "Auto-Marke", "Stadt", "Erotikfilm", "Beleidigung", "Emoji", "Pornostar",
-    "Land", "YouTuber", "One-Night-Stand-Ort", "Schmutziges Wort", "Sexstellung", "Planetenname", "Dirty Talk Satz", "Codewort fürs Abhauen",
-    "NSFW-Emoji", "Schlimmstes Date-Ende", "Peinlichster Chat-Screenshot", "Essen", "Pickup-Line", "Stripper-Name", "Schlechtester Anmachspruch",
-    "Film", "Getränk", "Spitzname", "Verbotene Fantasie", "Lustige Ausrede", "Sexspielzeug", "Kink", "Anmachspruch"
-    ]
+    "Safeword", "Ex-Name", "Lustige Ausrede", "Peinlichstes Date", "Disney-Figur", "Harry-Potter-Charakter", "Farbe", "Peinlichster Porno-Suchbegriff", "Kindheitsserie", "Körperteil", "Peinlicher Chat-Screenshot", "Schimpfwort", "Superheld", "Trinkspiel", "Schlechtester Anmachspruch", "Cringe-Song", "Peinlichster Bettunfall", "Drogenname", "Beruf", "Sänger", "Frucht", "Serie", "Marke", "Ort für schnellen Sex", "Kleidungsstück", "Sportart", "Musikinstrument", "Pornotitel", "Instagram-Trend", "Schlimmster Kater-Ort", "Peinliches Hobby", "Exotische Vorliebe", "Memes", "Computerspiel", "Schulfach", "Schauspieler", "Auto-Marke", "Stadt", "Erotikfilm", "Beleidigung", "Emoji", "Pornostar", "Land", "YouTuber", "One-Night-Stand-Ort", "Schmutziges Wort", "Sexstellung", "Planetenname", "Dirty Talk Satz", "Codewort fürs Abhauen", "NSFW-Emoji", "Schlimmstes Date-Ende", "Peinlichster Chat-Screenshot", "Essen", "Pickup-Line", "Stripper-Name", "Schlechtester Anmachspruch", "Film", "Getränk", "Spitzname", "Verbotene Fantasie", "Lustige Ausrede", "Sexspielzeug", "Kink", "Anmachspruch"
+]
+random.shuffle(TERMS)
 
 # -----------------------------
 # Multi-Room State
@@ -100,7 +94,7 @@ PLAYER_PAGE = r"""
 
   <div class="flex flex-wrap gap-3 mt-4">
     <button id="btn-lock" class="px-4 py-2 rounded-xl bg-slate-800 text-white">Antwort sperren &amp; zeigen</button>
-    <button id="btn-award" class="px-4 py-2 rounded-xl bg-emerald-600 text-white hidden">+1 Punkt</button>
+    <button id="btn-award" class="px-4 py-2 rounded-xl bg-emerald-600 text-white hidden">+1 Punkt (ich entscheide)</button>
     <button id="btn-next" class="px-4 py-2 rounded-xl bg-indigo-600 text-white hidden">Nächster Begriff</button>
   </div>
 
@@ -146,14 +140,21 @@ function render(s){
   if (submitted && serverVal && input.value !== serverVal){ input.value = serverVal; }
   if (!submitted && serverVal && (!focused || input.value.trim()==='')){ input.value = serverVal; }
 
-  if(s.revealed){
+  if(s.revealed && player==='p1'){
     $("reveal").classList.remove("hidden");
     $("ans1").textContent = s.answers.p1 ?? '—';
     $("ans2").textContent = s.answers.p2 ?? '—';
     $("btn-award").classList.remove("hidden");
     $("btn-next").classList.remove("hidden");
   } else {
-    $("reveal").classList.add("hidden");
+    // Spieler 2 sieht nur das Reveal-Panel (ohne Buttons), wenn revealed ist
+    if (s.revealed && player==='p2') {
+      $("reveal").classList.remove("hidden");
+      $("ans1").textContent = s.answers.p1 ?? '—';
+      $("ans2").textContent = s.answers.p2 ?? '—';
+    } else {
+      $("reveal").classList.add("hidden");
+    }
     $("btn-award").classList.add("hidden");
     $("btn-next").classList.add("hidden");
   }
@@ -256,13 +257,15 @@ def award():
     state = ensure_room(room)
     if state is None:
         return jsonify({'error':'room not found'}), 404
+    if requester != 'p1':
+        return jsonify({'error':'only player 1 can award'}), 403
     if not state['revealed']:
         return jsonify({'error':'not revealed yet'}), 400
-    a1 = (state['answers']['p1'] or '').strip().lower()
-    a2 = (state['answers']['p2'] or '').strip().lower()
-    if a1 and a1 == a2:
-        state['score'] += 1
-    return jsonify(serialize_state(state, requester))
+    # Manuelle Vergabe: Spieler 1 entscheidet, egal ob Antworten exakt sind
+    state['score'] += 1
+    resp = serialize_state(state, requester)
+    resp['_awarded'] = True
+    return jsonify(resp)
 
 @app.post('/next')
 def next_round():
@@ -271,6 +274,8 @@ def next_round():
     state = ensure_room(room)
     if state is None:
         return jsonify({'error':'room not found'}), 404
+    if requester != 'p1':
+        return jsonify({'error':'only player 1 can go next'}), 403
     state['round'] += 1
     state['revealed'] = False
     state['answers'] = {'p1': None, 'p2': None}
